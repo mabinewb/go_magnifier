@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -21,11 +22,14 @@ import (
 	"gomagnifier/internal/capture"
 	"gomagnifier/internal/model"
 	"gomagnifier/internal/persist"
+	"gomagnifier/internal/update"
 	"gomagnifier/internal/version"
 	"gomagnifier/internal/winutil"
 	)
 
 const appName = "GoMagnifier"
+const updateRepoOwner = "mabinewb"
+const updateRepoName = "go_magnifier"
 
 const (
 	mainWindowFixedWidth  = 680
@@ -64,6 +68,9 @@ type controller struct {
 	globalClickThrough bool
 	globalOverlaysDisabled bool
 	minimizeToTray     bool
+	closeToTrayOnClose bool
+	disableUpdateCheck bool
+	skippedUpdateVersion string
 	alwaysOnTop        bool
 	mainWindowRect     model.Rect
 	exitRequested      bool
@@ -100,7 +107,8 @@ type controller struct {
 	overlayEnabledBox *walk.CheckBox
 	allOverlaysEnabledBox *walk.CheckBox
 	clickThroughBox *walk.CheckBox
-	minimizeToTrayBox *walk.CheckBox
+	checkForUpdatesBox *walk.CheckBox
+	closeToTrayOnCloseBox *walk.CheckBox
 	alwaysOnTopBox  *walk.CheckBox
 	aspectLockBox   *walk.CheckBox
 	recursiveBlockBox *walk.CheckBox
@@ -118,6 +126,7 @@ type controller struct {
 	nextOverlaySeed int64
 	trayIcon        *walk.NotifyIcon
 	trayToggleOverlaysAction *walk.Action
+	trayCheckUpdatesAction *walk.Action
 	appIcon         *walk.Icon
 	lastTrayLeftClick time.Time
 }
@@ -157,6 +166,7 @@ func Run() error {
 	ctrl.updateLabels()
 	ctrl.enforceMainWindowFixedSize()
 	ctrl.mainWindow.Show()
+	ctrl.startAutomaticUpdateCheck()
 	ctrl.mainWindow.Run()
 	return nil
 }
@@ -182,6 +192,7 @@ func (c *controller) createMainWindow() error {
 						Children: []Widget{
 							Label{Text: "변경 사항은 settings.json에 자동 저장됩니다."},
 							HSpacer{},
+							PushButton{Text: "업데이트 확인", MinSize: Size{Width: 96, Height: 24}, MaxSize: Size{Width: 96, Height: 24}, OnClicked: c.checkForUpdatesRequested},
 							PushButton{Text: "도움말", MinSize: Size{Width: 72, Height: 24}, MaxSize: Size{Width: 72, Height: 24}, OnClicked: c.showHelp},
 						},
 					},
@@ -208,11 +219,17 @@ func (c *controller) createMainWindow() error {
 								Layout: HBox{MarginsZero: true, Spacing: 10},
 								Children: []Widget{
 									CheckBox{AssignTo: &c.clickThroughBox, Text: "마우스 클릭 통과 허용", OnCheckedChanged: c.clickThroughChanged},
-									CheckBox{AssignTo: &c.minimizeToTrayBox, Text: "트레이로 최소화", OnCheckedChanged: c.minimizeToTrayChanged},
 									CheckBox{AssignTo: &c.alwaysOnTopBox, Text: "설정창 항상 위에 표시", OnCheckedChanged: c.alwaysOnTopChanged},
+									CheckBox{AssignTo: &c.closeToTrayOnCloseBox, Text: "닫기 버튼을 누르면 트레이로 보내기", OnCheckedChanged: c.closeToTrayOnCloseChanged},
 								},
 							},
-							CheckBox{AssignTo: &c.allOverlaysEnabledBox, Text: "전체 오버레이 활성화", OnCheckedChanged: c.allOverlaysEnabledChanged},
+							Composite{
+								Layout: HBox{MarginsZero: true, Spacing: 10},
+								Children: []Widget{
+									CheckBox{AssignTo: &c.checkForUpdatesBox, Text: "시작 시 새 버전 확인", OnCheckedChanged: c.checkForUpdatesChanged},
+									CheckBox{AssignTo: &c.allOverlaysEnabledBox, Text: "전체 오버레이 활성화", OnCheckedChanged: c.allOverlaysEnabledChanged},
+								},
+							},
 						},
 					},
 				},
@@ -390,6 +407,18 @@ func (c *controller) createMainWindow() error {
 		}
 		return err
 	}
+	c.mainWindow.SizeChanged().Attach(func() {
+		if c.mainWindow != nil && win.IsIconic(c.mainWindow.Handle()) {
+			c.minimizeMainWindowToTray()
+		}
+	})
+	c.mainWindow.Closing().Attach(func(canceled *bool, reason walk.CloseReason) {
+		if c.exitRequested || !c.closeToTrayOnClose {
+			return
+		}
+		*canceled = true
+		c.minimizeMainWindowToTray()
+	})
 	c.captureMainWindowRect()
 	return nil
 }
@@ -417,7 +446,10 @@ func (c *controller) loadSession(session model.Session) error {
 	c.activeIndex = 0
 	c.globalClickThrough = sessionGlobalClickThrough(session)
 	c.globalOverlaysDisabled = session.OverlaysGloballyDisabled
-	c.minimizeToTray = session.MinimizeToTray
+	c.minimizeToTray = true
+	c.closeToTrayOnClose = session.CloseToTrayOnClose
+	c.disableUpdateCheck = session.DisableUpdateCheck
+	c.skippedUpdateVersion = session.SkippedUpdateVersion
 	c.alwaysOnTop = session.AlwaysOnTop
 	fallbackRect := model.Rect{Width: mainWindowFixedWidth, Height: mainWindowFixedHeight}
 	if c.mainWindow != nil {
@@ -1172,13 +1204,32 @@ func (c *controller) alwaysOnTopChanged() {
 	c.saveSettings()
 }
 
-func (c *controller) minimizeToTrayChanged() {
+func (c *controller) closeToTrayOnCloseChanged() {
 	if c.syncingControls {
 		return
 	}
-	c.minimizeToTray = c.minimizeToTrayBox.Checked()
-	c.applyMainWindowOptions()
+	c.closeToTrayOnClose = c.closeToTrayOnCloseBox.Checked()
 	c.saveSettings()
+	if c.closeToTrayOnClose {
+		c.setStatus("닫기 버튼을 누르면 설정창을 종료하지 않고 트레이로 보냅니다.")
+		return
+	}
+	c.setStatus("닫기 버튼을 누르면 프로그램을 종료합니다.")
+}
+
+func (c *controller) checkForUpdatesChanged() {
+	if c.syncingControls {
+		return
+	}
+	c.disableUpdateCheck = !c.checkForUpdatesBox.Checked()
+	if !c.disableUpdateCheck {
+		c.skippedUpdateVersion = ""
+	}
+	c.saveSettings()
+}
+
+func (c *controller) checkForUpdatesRequested() {
+	go c.checkForUpdates(true)
 }
 
 func (c *controller) aspectLockChanged() {
@@ -1358,6 +1409,12 @@ func (c *controller) syncControlsFromActive() {
 	if c.clickThroughBox != nil {
 		c.clickThroughBox.SetChecked(c.globalClickThrough)
 	}
+	if c.checkForUpdatesBox != nil {
+		c.checkForUpdatesBox.SetChecked(!c.disableUpdateCheck)
+	}
+	if c.closeToTrayOnCloseBox != nil {
+		c.closeToTrayOnCloseBox.SetChecked(c.closeToTrayOnClose)
+	}
 	if c.overlayEnabledBox != nil {
 		c.overlayEnabledBox.SetChecked(!entry.profile.Disabled)
 	}
@@ -1366,9 +1423,6 @@ func (c *controller) syncControlsFromActive() {
 	}
 	if c.alwaysOnTopBox != nil {
 		c.alwaysOnTopBox.SetChecked(c.alwaysOnTop)
-	}
-	if c.minimizeToTrayBox != nil {
-		c.minimizeToTrayBox.SetChecked(c.minimizeToTray)
 	}
 	if c.aspectLockBox != nil {
 		c.aspectLockBox.SetChecked(entry.profile.LockAspect)
@@ -1707,7 +1761,10 @@ func (c *controller) currentSession() model.Session {
 		MainWindowRect:  c.mainWindowRect,
 		GlobalClickThrough: c.globalClickThrough,
 		OverlaysGloballyDisabled: c.globalOverlaysDisabled,
-		MinimizeToTray: c.minimizeToTray,
+		MinimizeToTray: true,
+		CloseToTrayOnClose: c.closeToTrayOnClose,
+		DisableUpdateCheck: c.disableUpdateCheck,
+		SkippedUpdateVersion: c.skippedUpdateVersion,
 		AlwaysOnTop:    c.alwaysOnTop,
 		Overlays:        profiles,
 	}
@@ -1769,6 +1826,15 @@ func (c *controller) initializeShellIntegration() error {
 	if err := c.trayIcon.ContextMenu().Actions().Add(openAction); err != nil {
 		return err
 	}
+	checkUpdatesAction := walk.NewAction()
+	c.trayCheckUpdatesAction = checkUpdatesAction
+	_ = checkUpdatesAction.SetText("업데이트 확인")
+	checkUpdatesAction.Triggered().Attach(func() {
+		go c.checkForUpdates(true)
+	})
+	if err := c.trayIcon.ContextMenu().Actions().Add(checkUpdatesAction); err != nil {
+		return err
+	}
 	toggleOverlaysAction := walk.NewAction()
 	c.trayToggleOverlaysAction = toggleOverlaysAction
 	toggleOverlaysAction.Triggered().Attach(func() {
@@ -1795,7 +1861,7 @@ func (c *controller) initializeShellIntegration() error {
 	if err := c.trayIcon.ContextMenu().Actions().Add(exitAction); err != nil {
 		return err
 	}
-	return c.trayIcon.SetVisible(false)
+	return c.trayIcon.SetVisible(true)
 }
 
 func (c *controller) disposeTrayIcon() {
@@ -1804,6 +1870,7 @@ func (c *controller) disposeTrayIcon() {
 		c.trayIcon = nil
 	}
 	c.trayToggleOverlaysAction = nil
+	c.trayCheckUpdatesAction = nil
 }
 
 func (c *controller) updateTrayToggleOverlaysAction() {
@@ -1822,12 +1889,12 @@ func (c *controller) applyMainWindowOptions() {
 		winutil.SetAlwaysOnTop(c.mainWindow.Handle(), c.alwaysOnTop)
 	}
 	if c.trayIcon != nil {
-		_ = c.trayIcon.SetVisible(c.minimizeToTray)
+		_ = c.trayIcon.SetVisible(true)
 	}
 }
 
 func (c *controller) minimizeMainWindowToTray() {
-	if c.mainWindow == nil || c.exitRequested || !c.minimizeToTray {
+	if c.mainWindow == nil || c.exitRequested {
 		return
 	}
 	c.captureMainWindowRect()
@@ -1852,11 +1919,76 @@ func (c *controller) restoreMainWindowFromTray() {
 	c.mainWindow.SetVisible(true)
 	win.SetForegroundWindow(c.mainWindow.Handle())
 	c.applyMainWindowOptions()
-	if c.minimizeToTray && c.trayIcon != nil {
+	if c.trayIcon != nil {
 		_ = c.trayIcon.SetVisible(true)
 	}
 	if c.statusLabel != nil {
 		c.setStatus("설정창을 복원했습니다.")
+	}
+}
+
+func (c *controller) startAutomaticUpdateCheck() {
+	if c.disableUpdateCheck {
+		return
+	}
+	go c.checkForUpdates(false)
+}
+
+func (c *controller) checkForUpdates(manual bool) {
+	if !manual && c.disableUpdateCheck {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	release, err := update.FetchLatestRelease(ctx, updateRepoOwner, updateRepoName)
+	if err != nil {
+		if manual && c.mainWindow != nil {
+			c.mainWindow.Synchronize(func() {
+				c.setStatus("업데이트 확인 실패: " + err.Error())
+			})
+		}
+		return
+	}
+	if !update.IsNewerThanCurrent(release.TagName) {
+		if manual && c.mainWindow != nil {
+			c.mainWindow.Synchronize(func() {
+				c.setStatus("현재 최신 버전을 사용 중입니다: " + version.Display())
+			})
+		}
+		return
+	}
+	if !manual && strings.EqualFold(strings.TrimSpace(c.skippedUpdateVersion), strings.TrimSpace(release.TagName)) {
+		return
+	}
+	if c.mainWindow == nil {
+		return
+	}
+	c.mainWindow.Synchronize(func() {
+		c.promptForUpdate(release)
+	})
+}
+
+func (c *controller) promptForUpdate(release update.ReleaseInfo) {
+	title := "새 버전 사용 가능"
+	name := strings.TrimSpace(release.Name)
+	if name == "" {
+		name = release.TagName
+	}
+	message := fmt.Sprintf("현재 버전: %s\r\n최신 버전: %s\r\n\r\n예: 다운로드 페이지 열기\r\n아니오: 이번 버전 건너뛰기\r\n취소: 나중에", version.Display(), name)
+	result := walk.MsgBox(c.mainWindow, title, message, walk.MsgBoxYesNoCancel|walk.MsgBoxIconInformation)
+	switch result {
+	case walk.DlgCmdYes:
+		if err := exec.Command("explorer.exe", release.HTMLURL).Start(); err != nil {
+			c.setStatus("다운로드 페이지 열기 실패: " + err.Error())
+			return
+		}
+		c.setStatus("다운로드 페이지를 열었습니다: " + release.TagName)
+	case walk.DlgCmdNo:
+		c.skippedUpdateVersion = release.TagName
+		c.saveSettings()
+		c.setStatus("이 버전 알림을 건너뜁니다: " + release.TagName)
+	default:
+		c.setStatus("업데이트 알림을 나중에 다시 표시합니다.")
 	}
 }
 

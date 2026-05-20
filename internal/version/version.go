@@ -1,6 +1,9 @@
 package version
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 const AppName = "Go Magnifier"
 
@@ -38,4 +41,34 @@ func Details() string {
 		parts = append(parts, "빌드 시각(UTC): "+BuildTime)
 	}
 	return strings.Join(parts, "\r\n")
+}
+
+func Base() string {
+	value := strings.TrimSpace(Display())
+	value = strings.TrimPrefix(strings.TrimPrefix(value, "v"), "V")
+	if cut := strings.IndexAny(value, "+-"); cut >= 0 {
+		value = value[:cut]
+	}
+	return value
+}
+
+func ParseComparable(value string) ([3]int, bool) {
+	var parsed [3]int
+	trimmed := strings.TrimSpace(value)
+	trimmed = strings.TrimPrefix(strings.TrimPrefix(trimmed, "v"), "V")
+	if cut := strings.IndexAny(trimmed, "+-"); cut >= 0 {
+		trimmed = trimmed[:cut]
+	}
+	parts := strings.Split(trimmed, ".")
+	if len(parts) < 3 {
+		return parsed, false
+	}
+	for index := 0; index < 3; index++ {
+		number, err := strconv.Atoi(parts[index])
+		if err != nil {
+			return parsed, false
+		}
+		parsed[index] = number
+	}
+	return parsed, true
 }

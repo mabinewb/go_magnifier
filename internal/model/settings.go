@@ -83,6 +83,9 @@ type Session struct {
 	GlobalClickThrough bool   `json:"globalClickThrough,omitempty"`
 	OverlaysGloballyDisabled bool `json:"overlaysGloballyDisabled,omitempty"`
 	MinimizeToTray bool       `json:"minimizeToTray,omitempty"`
+	CloseToTrayOnClose bool   `json:"closeToTrayOnClose,omitempty"`
+	DisableUpdateCheck bool   `json:"disableUpdateCheck,omitempty"`
+	SkippedUpdateVersion string `json:"skippedUpdateVersion,omitempty"`
 	AlwaysOnTop    bool       `json:"alwaysOnTop,omitempty"`
 	Overlays        []Profile `json:"overlays"`
 }
