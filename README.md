@@ -1,10 +1,20 @@
 # Go Magnifier
 
+[![Latest Release](https://img.shields.io/github/v/release/mabinewb/go_magnifier?label=latest%20release)](https://github.com/mabinewb/go_magnifier/releases/latest)
+[![Download EXE](https://img.shields.io/badge/download-GoMagnifier.exe-2ea44f)](https://github.com/mabinewb/go_magnifier/releases/latest/download/GoMagnifier.exe)
+
 Go 언어로 작성된 Windows 전용 오버레이 도구입니다. 화면 캡처, 이미지, 텍스트를 각각 별도 오버레이로 띄울 수 있고, 오버레이마다 위치, 크기, 투명도, 클릭 통과 여부를 독립적으로 조절할 수 있습니다.
 
 현재 앱은 단일 확대기보다는 여러 개의 오버레이를 동시에 관리하는 데 초점이 맞춰져 있습니다. 화면 일부를 확대해서 띄우는 용도뿐 아니라, 고정 이미지 패널이나 텍스트 패널을 항상 위에 두는 용도로도 사용할 수 있습니다.
 
 Windows에서 간단한 확대 패널, 참고 이미지 패널, 짧은 메모 패널을 한 앱 안에서 함께 관리하고 싶을 때 쓰기 좋습니다.
+
+## 다운로드
+
+- 최신 릴리즈 페이지: https://github.com/mabinewb/go_magnifier/releases/latest
+- 최신 실행 파일 직접 다운로드: https://github.com/mabinewb/go_magnifier/releases/latest/download/GoMagnifier.exe
+
+버전별 배포 파일이 필요하면 릴리즈 페이지에서 원하는 태그를 선택하면 됩니다.
 
 ## 지원 기능
 
