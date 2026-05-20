@@ -1856,7 +1856,7 @@ func (c *controller) initializeShellIntegration() error {
 	exitAction := walk.NewAction()
 	_ = exitAction.SetText("종료")
 	exitAction.Triggered().Attach(func() {
-		c.requestExit()
+		c.requestExit(true)
 	})
 	if err := c.trayIcon.ContextMenu().Actions().Add(exitAction); err != nil {
 		return err
@@ -2003,7 +2003,7 @@ func (c *controller) captureMainWindowRect() {
 	c.mainWindowRect = model.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: bounds.Height}
 }
 
-func (c *controller) requestExit() {
+func (c *controller) requestExit(forceTerminate bool) {
 	c.exitRequested = true
 	appendRuntimeLog("INFO", "application shutdown requested")
 	c.captureMainWindowRect()
@@ -2013,7 +2013,14 @@ func (c *controller) requestExit() {
 	if c.mainWindow != nil {
 		winutil.SetAlwaysOnTop(c.mainWindow.Handle(), false)
 		c.mainWindow.SetVisible(false)
+		if forceTerminate {
+			c.mainWindow.Dispose()
+			os.Exit(0)
+		}
 		c.mainWindow.Close()
+	}
+	if forceTerminate {
+		os.Exit(0)
 	}
 }
 
