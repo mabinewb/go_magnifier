@@ -82,14 +82,22 @@ try {
     $BuildVersionSafe = $BuildVersion.Replace('/', '-').Replace(':', '-')
     $PackageDir = Join-Path $DistDir ("GoMagnifier-{0}-windows-amd64" -f $BuildVersionSafe)
     $PackageZipPath = Join-Path $DistDir ("GoMagnifier-{0}-windows-amd64.zip" -f $BuildVersionSafe)
-    $LdFlags = @(
+    $LdFlagsParts = @(
         '-H windowsgui',
         "-X gomagnifier/internal/version.Version=$BuildVersion",
         "-X gomagnifier/internal/version.Commit=$BuildCommit",
         "-X gomagnifier/internal/version.BuildTime=$BuildTimeUtc"
-    ) -join ' '
+    )
+    $ExtraLdFlags = $env:GOMAGNIFIER_EXTRA_LDFLAGS
+    if (-not [string]::IsNullOrWhiteSpace($ExtraLdFlags)) {
+        $LdFlagsParts += ($ExtraLdFlags -split '\s+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
+    $LdFlags = $LdFlagsParts -join ' '
     Write-Host ("Build version: {0} ({1})" -f $BuildVersion, $BuildCommit)
     Write-Host ("Build time (UTC): {0}" -f $BuildTimeUtc)
+    if (-not [string]::IsNullOrWhiteSpace($ExtraLdFlags)) {
+        Write-Host ("Extra ldflags: {0}" -f $ExtraLdFlags)
+    }
     Invoke-NativeOrThrow -FilePath $script:GoExe -Arguments @('mod', 'download')
     Invoke-NativeOrThrow -FilePath $script:GoExe -Arguments @('build', '-trimpath', "-ldflags=$LdFlags", '-o', $ExePath, './cmd/magnifier')
     Copy-Item -Path $ManifestSource -Destination $ManifestTarget -Force

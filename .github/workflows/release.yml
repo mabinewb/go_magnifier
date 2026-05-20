@@ -28,6 +28,8 @@ jobs:
 
       - name: Build release package
         shell: pwsh
+        env:
+          GOMAGNIFIER_EXTRA_LDFLAGS: -s -w
         run: |
           .\scripts\build.ps1 -Clean
 

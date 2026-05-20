@@ -88,9 +88,9 @@ PowerShell에서 프로젝트 루트로 이동한 뒤 실행합니다.
 예시:
 
 ```powershell
-git tag -a v1.0.0 -m "Version 1.0.0"
+git tag -a v1.0.2 -m "Version 1.0.2"
 git push origin main
-git push origin v1.0.0
+git push origin v1.0.2
 ```
 
 ## 사용 방법
