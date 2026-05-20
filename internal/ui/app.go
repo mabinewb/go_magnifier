@@ -57,6 +57,7 @@ type controller struct {
 
 	activeIndex         int
 	globalClickThrough bool
+	globalOverlaysDisabled bool
 	minimizeToTray     bool
 	alwaysOnTop        bool
 	mainWindowRect     model.Rect
@@ -91,6 +92,8 @@ type controller struct {
 	statusLabel     *walk.LineEdit
 	zoomXEdit       *walk.LineEdit
 	zoomYEdit       *walk.LineEdit
+	overlayEnabledBox *walk.CheckBox
+	allOverlaysEnabledBox *walk.CheckBox
 	clickThroughBox *walk.CheckBox
 	minimizeToTrayBox *walk.CheckBox
 	alwaysOnTopBox  *walk.CheckBox
@@ -109,6 +112,7 @@ type controller struct {
 	syncingControls bool
 	nextOverlaySeed int64
 	trayIcon        *walk.NotifyIcon
+	trayToggleOverlaysAction *walk.Action
 	appIcon         *walk.Icon
 	lastTrayLeftClick time.Time
 }
@@ -203,6 +207,7 @@ func (c *controller) createMainWindow() error {
 									CheckBox{AssignTo: &c.alwaysOnTopBox, Text: "설정창 항상 위에 표시", OnCheckedChanged: c.alwaysOnTopChanged},
 								},
 							},
+							CheckBox{AssignTo: &c.allOverlaysEnabledBox, Text: "전체 오버레이 활성화", OnCheckedChanged: c.allOverlaysEnabledChanged},
 						},
 					},
 				},
@@ -224,6 +229,7 @@ func (c *controller) createMainWindow() error {
 											ComboBox{AssignTo: &c.overlayPicker, OnCurrentIndexChanged: c.overlaySelectionChanged},
 										},
 									},
+									CheckBox{AssignTo: &c.overlayEnabledBox, Text: "선택한 오버레이 활성화", OnCheckedChanged: c.overlayEnabledChanged},
 									Composite{
 										Layout: Grid{Columns: 2, MarginsZero: true, Spacing: 4},
 										Children: []Widget{
@@ -405,6 +411,7 @@ func (c *controller) loadSession(session model.Session) error {
 	c.overlays = nil
 	c.activeIndex = 0
 	c.globalClickThrough = sessionGlobalClickThrough(session)
+	c.globalOverlaysDisabled = session.OverlaysGloballyDisabled
 	c.minimizeToTray = session.MinimizeToTray
 	c.alwaysOnTop = session.AlwaysOnTop
 	fallbackRect := model.Rect{Width: mainWindowFixedWidth, Height: mainWindowFixedHeight}
@@ -506,7 +513,11 @@ func (c *controller) createOverlayEntry(profile model.Profile) (*overlayEntry, e
 			c.updateLabels()
 		})
 	})
-	entry.capture.Start(profile)
+	if c.overlayEffectivelyDisabled(entry) {
+		window.SetRuntimeVisible(false)
+	} else {
+		entry.capture.Start(profile)
+	}
 	return entry, nil
 }
 
@@ -530,6 +541,79 @@ func (c *controller) activeEntry() *overlayEntry {
 	return c.overlays[c.activeIndex]
 }
 
+func (c *controller) allOverlaysEnabled() bool {
+	return !c.globalOverlaysDisabled
+}
+
+func (c *controller) overlayEffectivelyDisabled(entry *overlayEntry) bool {
+	if entry == nil {
+		return true
+	}
+	return c.globalOverlaysDisabled || entry.profile.Disabled
+}
+
+func (c *controller) overlayStateText(entry *overlayEntry) string {
+	if entry == nil {
+		return "비활성화"
+	}
+	if c.globalOverlaysDisabled {
+		if entry.profile.Disabled {
+			return "전체 비활성화 중 · 개별 비활성화"
+		}
+		return "전체 비활성화 중"
+	}
+	if entry.profile.Disabled {
+		return "비활성화"
+	}
+	return "활성"
+}
+
+func (c *controller) applyOverlayEnabledState(entry *overlayEntry) {
+	if entry == nil {
+		return
+	}
+	effectivelyDisabled := c.overlayEffectivelyDisabled(entry)
+	if entry.overlay != nil {
+		_ = entry.overlay.ApplyProfile(entry.profile)
+		entry.overlay.SetRuntimeVisible(!effectivelyDisabled)
+		if !effectivelyDisabled {
+			c.updateRecursiveCaptureState(entry)
+		}
+	}
+	if entry.capture != nil {
+		if effectivelyDisabled {
+			entry.capture.Stop()
+		} else {
+			entry.capture.Start(entry.profile)
+		}
+	}
+}
+
+func (c *controller) setOverlayDisabled(entry *overlayEntry, disabled bool) {
+	if entry == nil {
+		return
+	}
+	entry.profile.Disabled = disabled
+	c.applyOverlayEnabledState(entry)
+	if !disabled {
+		c.syncZoomFromOverlay(entry)
+	}
+	if entry == c.activeEntry() {
+		c.updateLabels()
+	}
+	c.refreshOverlayPicker()
+	c.updateTrayToggleOverlaysAction()
+}
+
+func (c *controller) setAllOverlaysDisabled(disabled bool) {
+	c.globalOverlaysDisabled = disabled
+	for _, entry := range c.overlays {
+		c.applyOverlayEnabledState(entry)
+	}
+	c.refreshOverlayPicker()
+	c.updateTrayToggleOverlaysAction()
+}
+
 func (c *controller) refreshOverlayPicker() {
 	if c.overlayPicker == nil {
 		return
@@ -542,7 +626,8 @@ func (c *controller) refreshOverlayPicker() {
 		} else if entry.profile.SourceKind == model.SourceText {
 			source = "텍스트"
 		}
-		names = append(names, fmt.Sprintf("오버레이 %d · %s", index+1, source))
+		state := c.overlayStateText(entry)
+		names = append(names, fmt.Sprintf("오버레이 %d · %s · %s", index+1, source, state))
 	}
 	c.syncingControls = true
 	c.overlayPicker.SetModel(names)
@@ -1038,6 +1123,41 @@ func (c *controller) clickThroughChanged() {
 	c.saveSettings()
 }
 
+func (c *controller) overlayEnabledChanged() {
+	if c.syncingControls || c.overlayEnabledBox == nil {
+		return
+	}
+	entry := c.activeEntry()
+	if entry == nil {
+		return
+	}
+	c.setOverlayDisabled(entry, !c.overlayEnabledBox.Checked())
+	c.syncControlsFromActive()
+	c.updateLabels()
+	c.saveSettings()
+	if entry.profile.Disabled {
+		c.setStatus("선택한 오버레이를 비활성화했습니다.")
+	} else {
+		c.setStatus("선택한 오버레이를 활성화했습니다.")
+	}
+}
+
+func (c *controller) allOverlaysEnabledChanged() {
+	if c.syncingControls || c.allOverlaysEnabledBox == nil {
+		return
+	}
+	enableAll := c.allOverlaysEnabledBox.Checked()
+	c.setAllOverlaysDisabled(!enableAll)
+	c.syncControlsFromActive()
+	c.updateLabels()
+	c.saveSettings()
+	if enableAll {
+		c.setStatus("모든 오버레이를 활성화했습니다.")
+	} else {
+		c.setStatus("모든 오버레이를 비활성화했습니다.")
+	}
+}
+
 func (c *controller) alwaysOnTopChanged() {
 	if c.syncingControls {
 		return
@@ -1233,6 +1353,12 @@ func (c *controller) syncControlsFromActive() {
 	if c.clickThroughBox != nil {
 		c.clickThroughBox.SetChecked(c.globalClickThrough)
 	}
+	if c.overlayEnabledBox != nil {
+		c.overlayEnabledBox.SetChecked(!entry.profile.Disabled)
+	}
+	if c.allOverlaysEnabledBox != nil {
+		c.allOverlaysEnabledBox.SetChecked(!c.globalOverlaysDisabled)
+	}
 	if c.alwaysOnTopBox != nil {
 		c.alwaysOnTopBox.SetChecked(c.alwaysOnTop)
 	}
@@ -1351,6 +1477,7 @@ func (c *controller) syncControlsFromActive() {
 	}
 	c.syncingControls = false
 	c.refreshOverlayPicker()
+	c.updateTrayToggleOverlaysAction()
 	c.enforceMainWindowFixedSize()
 }
 
@@ -1394,7 +1521,8 @@ func (c *controller) updateLabels() {
 		}
 	}
 	if c.overlayLabel != nil {
-		c.overlayLabel.SetText(formatRect("오버레이 영역", entry.profile.OverlayRect))
+		state := c.overlayStateText(entry)
+		c.overlayLabel.SetText(formatRect("오버레이 영역", entry.profile.OverlayRect) + " · 상태: " + state)
 	}
 	if c.opacityLabel != nil {
 		c.opacityLabel.SetText(fmt.Sprintf("%d%%", entry.profile.Opacity))
@@ -1573,6 +1701,7 @@ func (c *controller) currentSession() model.Session {
 		ActiveOverlayID: activeID,
 		MainWindowRect:  c.mainWindowRect,
 		GlobalClickThrough: c.globalClickThrough,
+		OverlaysGloballyDisabled: c.globalOverlaysDisabled,
 		MinimizeToTray: c.minimizeToTray,
 		AlwaysOnTop:    c.alwaysOnTop,
 		Overlays:        profiles,
@@ -1635,6 +1764,24 @@ func (c *controller) initializeShellIntegration() error {
 	if err := c.trayIcon.ContextMenu().Actions().Add(openAction); err != nil {
 		return err
 	}
+	toggleOverlaysAction := walk.NewAction()
+	c.trayToggleOverlaysAction = toggleOverlaysAction
+	toggleOverlaysAction.Triggered().Attach(func() {
+		enableAll := !c.allOverlaysEnabled()
+		c.setAllOverlaysDisabled(!enableAll)
+		c.syncControlsFromActive()
+		c.updateLabels()
+		c.saveSettings()
+		if enableAll {
+			c.setStatus("모든 오버레이를 활성화했습니다.")
+		} else {
+			c.setStatus("모든 오버레이를 비활성화했습니다.")
+		}
+	})
+	c.updateTrayToggleOverlaysAction()
+	if err := c.trayIcon.ContextMenu().Actions().Add(toggleOverlaysAction); err != nil {
+		return err
+	}
 	exitAction := walk.NewAction()
 	_ = exitAction.SetText("종료")
 	exitAction.Triggered().Attach(func() {
@@ -1651,6 +1798,18 @@ func (c *controller) disposeTrayIcon() {
 		_ = c.trayIcon.Dispose()
 		c.trayIcon = nil
 	}
+	c.trayToggleOverlaysAction = nil
+}
+
+func (c *controller) updateTrayToggleOverlaysAction() {
+	if c.trayToggleOverlaysAction == nil {
+		return
+	}
+	if c.allOverlaysEnabled() {
+		_ = c.trayToggleOverlaysAction.SetText("전체 오버레이 비활성화")
+		return
+	}
+	_ = c.trayToggleOverlaysAction.SetText("전체 오버레이 활성화")
 }
 
 func (c *controller) applyMainWindowOptions() {

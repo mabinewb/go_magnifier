@@ -72,6 +72,7 @@ type Profile struct {
 	RefreshRate  int     `json:"refreshRate"`
 	CaptureBackend string `json:"captureBackend,omitempty"`
 	ClickThrough bool    `json:"clickThrough"`
+	Disabled     bool    `json:"disabled,omitempty"`
 	LockAspect   bool    `json:"lockAspect"`
 	BlockRecursiveCapture bool `json:"blockRecursiveCapture,omitempty"`
 }
@@ -80,6 +81,7 @@ type Session struct {
 	ActiveOverlayID string    `json:"activeOverlayId,omitempty"`
 	MainWindowRect  Rect      `json:"mainWindowRect,omitempty"`
 	GlobalClickThrough bool   `json:"globalClickThrough,omitempty"`
+	OverlaysGloballyDisabled bool `json:"overlaysGloballyDisabled,omitempty"`
 	MinimizeToTray bool       `json:"minimizeToTray,omitempty"`
 	AlwaysOnTop    bool       `json:"alwaysOnTop,omitempty"`
 	Overlays        []Profile `json:"overlays"`

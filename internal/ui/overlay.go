@@ -49,6 +49,7 @@ type OverlayWindow struct {
 	appliedOpacity  int
 	appliedRecursive bool
 	usePerPixelAlpha bool
+	runtimeVisible  bool
 	onBoundsChanged func(model.Rect, bool)
 	onPresentError  func(error)
 	clientHandle    win.HWND
@@ -76,7 +77,7 @@ func NewOverlayWindow(profile model.Profile) (*OverlayWindow, error) {
 		return nil, err
 	}
 
-	window := &OverlayWindow{MainWindow: mw}
+	window := &OverlayWindow{MainWindow: mw, runtimeVisible: true}
 	mw.SetTitle("Go Magnifier Overlay")
 	layout := walk.NewVBoxLayout()
 	layout.SetMargins(walk.Margins{})
@@ -178,6 +179,7 @@ func (o *OverlayWindow) ApplyProfile(profile model.Profile) error {
 	o.appliedOpacity = profile.Opacity
 	o.appliedRecursive = profile.BlockRecursiveCapture
 	o.usePerPixelAlpha = profile.SourceKind == model.SourceText
+	visible := o.runtimeVisible
 	o.suppressBounds = false
 	o.mu.Unlock()
 	if layeredModeChanged {
@@ -200,6 +202,14 @@ func (o *OverlayWindow) ApplyProfile(profile model.Profile) error {
 	if clickThroughChanged {
 		winutil.SetClickThrough(o.Handle(), profile.ClickThrough)
 		o.applyClientClickThrough(profile.ClickThrough)
+	}
+	if !visible {
+		if o.textLayer != nil {
+			o.textLayer.hide()
+		}
+		win.ShowWindow(o.Handle(), win.SW_HIDE)
+		o.SetVisible(false)
+		return nil
 	}
 	if o.usesPerPixelAlpha() {
 		o.presentLayeredFrame()
@@ -260,6 +270,35 @@ func (o *OverlayWindow) PrepareForClose() {
 	if o.MainWindow != nil {
 		o.SetVisible(false)
 	}
+}
+
+func (o *OverlayWindow) SetRuntimeVisible(visible bool) {
+	if o == nil || o.MainWindow == nil {
+		return
+	}
+	o.mu.Lock()
+	o.runtimeVisible = visible
+	o.mu.Unlock()
+	if visible {
+		win.ShowWindow(o.Handle(), win.SW_SHOWNA)
+		o.SetVisible(true)
+		o.fitClientHandle()
+		if o.textLayer != nil {
+			o.textLayer.show()
+		}
+		if o.usesPerPixelAlpha() {
+			o.syncTextLayerBounds()
+			o.presentLayeredFrame()
+		} else {
+			o.invalidateDisplay()
+		}
+		return
+	}
+	if o.textLayer != nil {
+		o.textLayer.hide()
+	}
+	win.ShowWindow(o.Handle(), win.SW_HIDE)
+	o.SetVisible(false)
 }
 
 func (o *OverlayWindow) SubmitFrame(frame *capture.Frame) {
