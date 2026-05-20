@@ -29,14 +29,6 @@ jobs:
         run: |
           .\scripts\build.ps1 -Clean
 
-          $version = if ("${{ github.ref_type }}" -eq 'tag') {
-            "${{ github.ref_name }}"
-          } else {
-            (git describe --tags --dirty --always)
-          }
-
-          "RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
       - name: Publish GitHub release assets
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
@@ -44,4 +36,4 @@ jobs:
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
           files: |
-            dist/GoMagnifier-${{ env.RELEASE_VERSION }}-windows-amd64.zip
+            dist/GoMagnifier.exe
