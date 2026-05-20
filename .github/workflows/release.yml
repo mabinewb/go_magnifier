@@ -1,0 +1,62 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build release package
+        shell: pwsh
+        run: |
+          .\scripts\build.ps1 -Clean
+
+          $version = if ("${{ github.ref_type }}" -eq 'tag') {
+            "${{ github.ref_name }}"
+          } else {
+            (git describe --tags --dirty --always)
+          }
+
+          $packageDir = Join-Path $PWD ("dist\GoMagnifier-{0}-windows-amd64" -f $version)
+          $zipPath = Join-Path $PWD ("dist\GoMagnifier-{0}-windows-amd64.zip" -f $version)
+
+          Remove-Item -Path $packageDir, $zipPath -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+
+          Copy-Item .\dist\GoMagnifier.exe $packageDir -Force
+          Copy-Item .\dist\GoMagnifier.exe.manifest $packageDir -Force
+          Copy-Item .\dist\GoMagnifier.ico $packageDir -Force
+
+          Compress-Archive -Path (Join-Path $packageDir '*') -DestinationPath $zipPath -Force
+
+          "RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Publish GitHub release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/GoMagnifier.exe
+            dist/GoMagnifier.exe.manifest
+            dist/GoMagnifier.ico
+            dist/GoMagnifier-${{ env.RELEASE_VERSION }}-windows-amd64.zip

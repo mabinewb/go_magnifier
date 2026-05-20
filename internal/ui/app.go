@@ -21,6 +21,7 @@ import (
 	"gomagnifier/internal/capture"
 	"gomagnifier/internal/model"
 	"gomagnifier/internal/persist"
+	"gomagnifier/internal/version"
 	"gomagnifier/internal/winutil"
 	)
 
@@ -35,7 +36,11 @@ const (
 	statusFieldLabelWidth   = 40
 )
 
-const helpText = "Go Magnifier는 Go로 만든 Windows 전용 화면 확대 오버레이 프로그램입니다.\r\n\r\n1. 오버레이를 추가한 뒤 화면 캡처, 이미지 파일, 텍스트 중 하나를 소스로 선택합니다.\r\n2. 선택한 오버레이 표시 설정에서 배율과 투명도를 조절합니다. 리프레시율은 화면 캡처 소스에서만 사용됩니다.\r\n3. 텍스트 소스에서는 내용, 글자 크기, 굵게, 기울임, 글자색, 배경색, 외곽선 설정을 조절할 수 있습니다.\r\n4. 오버레이 창은 직접 드래그해 이동할 수 있고, 가장자리를 잡아 크기를 조절할 수 있습니다.\r\n5. 변경 사항은 기본 설정 파일(settings.json)에 자동 저장되며, 필요할 때만 별도 파일로 저장하거나 불러올 수 있습니다."
+const helpBody = "Go Magnifier는 Go로 만든 Windows 전용 화면 확대 오버레이 프로그램입니다.\r\n\r\n1. 오버레이를 추가한 뒤 화면 캡처, 이미지 파일, 텍스트 중 하나를 소스로 선택합니다.\r\n2. 선택한 오버레이 표시 설정에서 배율과 투명도를 조절합니다. 리프레시율은 화면 캡처 소스에서만 사용됩니다.\r\n3. 텍스트 소스에서는 내용, 글자 크기, 굵게, 기울임, 글자색, 배경색, 외곽선 설정을 조절할 수 있습니다.\r\n4. 오버레이 창은 직접 드래그해 이동할 수 있고, 가장자리를 잡아 크기를 조절할 수 있습니다.\r\n5. 변경 사항은 기본 설정 파일(settings.json)에 자동 저장되며, 필요할 때만 별도 파일로 저장하거나 불러올 수 있습니다."
+
+func helpText() string {
+	return helpBody + "\r\n\r\n버전 정보\r\n" + version.Details()
+}
 
 var sourceKindOptions = []string{"화면 캡처", "이미지 파일", "텍스트"}
 var captureBackendOptions = []string{"자동", "기존 GDI BitBlt", "Desktop Duplication (DXGI)"}
@@ -122,7 +127,7 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	appendRuntimeLog("INFO", "application start")
+	appendRuntimeLog("INFO", "application start: "+version.Details())
 
 	ctrl := &controller{store: store}
 	if err := ctrl.createMainWindow(); err != nil {
@@ -159,7 +164,7 @@ func Run() error {
 func (c *controller) createMainWindow() error {
 	window := MainWindow{
 		AssignTo: &c.mainWindow,
-		Title:    "Go Magnifier",
+		Title:    version.AppTitle(),
 		MinSize:  Size{Width: mainWindowFixedWidth, Height: mainWindowFixedHeight},
 		MaxSize:  Size{Width: mainWindowFixedWidth, Height: mainWindowFixedHeight},
 		Size:     Size{Width: mainWindowFixedWidth, Height: mainWindowFixedHeight},
@@ -403,7 +408,7 @@ func (c *controller) showHelp() {
 	if c.mainWindow == nil {
 		return
 	}
-	walk.MsgBox(c.mainWindow, "Go Magnifier 도움말", helpText, walk.MsgBoxOK|walk.MsgBoxIconInformation)
+	walk.MsgBox(c.mainWindow, version.AppName+" 도움말", helpText(), walk.MsgBoxOK|walk.MsgBoxIconInformation)
 }
 
 func (c *controller) loadSession(session model.Session) error {
@@ -1741,7 +1746,7 @@ func (c *controller) initializeShellIntegration() error {
 	if err := c.trayIcon.SetIcon(icon); err != nil {
 		return err
 	}
-	if err := c.trayIcon.SetToolTip(appName); err != nil {
+	if err := c.trayIcon.SetToolTip(version.Tooltip()); err != nil {
 		return err
 	}
 	c.trayIcon.MouseUp().Attach(func(x, y int, button walk.MouseButton) {

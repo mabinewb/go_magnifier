@@ -56,7 +56,7 @@ PowerShell에서 프로젝트 루트로 이동한 뒤 실행합니다.
 .\scripts\build.ps1
 ```
 
-빌드 결과물은 dist/GoMagnifier.exe 에 생성됩니다.
+빌드 결과물은 dist/GoMagnifier.exe 에 생성됩니다. 빌드 시점의 Git 태그와 커밋 정보를 읽어 앱 제목, 도움말, 트레이 툴팁에 버전 문자열이 함께 들어갑니다.
 
 자주 쓰는 예시는 아래와 같습니다.
 
@@ -64,6 +64,20 @@ PowerShell에서 프로젝트 루트로 이동한 뒤 실행합니다.
 .\scripts\build.ps1 -Clean
 .\scripts\run.ps1 -Rebuild
 .\scripts\run.ps1 -ForceGoDownload
+```
+
+## 릴리즈 자동화
+
+- 공개 저장소에서는 GitHub Actions를 사용해 추가 비용 없이 Windows 빌드와 릴리즈 자산 업로드를 자동화할 수 있습니다.
+- 이 저장소에는 v로 시작하는 태그를 push하면 Windows 실행 파일과 배포용 zip을 GitHub Release에 자동으로 올리는 워크플로가 포함됩니다.
+- 일반 코드 push와 릴리즈 push를 구분하기 위해, 자동 릴리즈는 main 브랜치 push가 아니라 버전 태그 push 기준으로 동작하게 두는 편이 안전합니다.
+
+예시:
+
+```powershell
+git tag -a v0.1.1 -m "Version 0.1.1"
+git push origin main
+git push origin v0.1.1
 ```
 
 ## 사용 방법

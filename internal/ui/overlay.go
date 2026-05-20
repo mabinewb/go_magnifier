@@ -14,6 +14,7 @@ import (
 
 	"gomagnifier/internal/capture"
 	"gomagnifier/internal/model"
+	"gomagnifier/internal/version"
 	"gomagnifier/internal/winutil"
 )
 
@@ -78,7 +79,7 @@ func NewOverlayWindow(profile model.Profile) (*OverlayWindow, error) {
 	}
 
 	window := &OverlayWindow{MainWindow: mw, runtimeVisible: true}
-	mw.SetTitle("Go Magnifier Overlay")
+	mw.SetTitle(version.OverlayTitle())
 	layout := walk.NewVBoxLayout()
 	layout.SetMargins(walk.Margins{})
 	layout.SetSpacing(0)

@@ -20,6 +20,25 @@ function Invoke-NativeOrThrow {
     }
 }
 
+function Get-GitTextOrDefault {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][string]$DefaultValue
+    )
+
+    $output = & git @Arguments 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        return $DefaultValue
+    }
+
+    $text = ($output | Out-String).Trim()
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        return $DefaultValue
+    }
+
+    return $text
+}
+
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 $DistDir = Join-Path $ProjectRoot 'dist'
 $ExePath = Join-Path $DistDir 'GoMagnifier.exe'
@@ -57,8 +76,19 @@ New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 
 Push-Location $ProjectRoot
 try {
+    $BuildVersion = Get-GitTextOrDefault -Arguments @('describe', '--tags', '--dirty', '--always') -DefaultValue 'dev'
+    $BuildCommit = Get-GitTextOrDefault -Arguments @('rev-parse', '--short', 'HEAD') -DefaultValue 'unknown'
+    $BuildTimeUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $LdFlags = @(
+        '-H windowsgui',
+        "-X gomagnifier/internal/version.Version=$BuildVersion",
+        "-X gomagnifier/internal/version.Commit=$BuildCommit",
+        "-X gomagnifier/internal/version.BuildTime=$BuildTimeUtc"
+    ) -join ' '
+    Write-Host ("Build version: {0} ({1})" -f $BuildVersion, $BuildCommit)
+    Write-Host ("Build time (UTC): {0}" -f $BuildTimeUtc)
     Invoke-NativeOrThrow -FilePath $script:GoExe -Arguments @('mod', 'download')
-    Invoke-NativeOrThrow -FilePath $script:GoExe -Arguments @('build', '-trimpath', '-ldflags=-H windowsgui', '-o', $ExePath, './cmd/magnifier')
+    Invoke-NativeOrThrow -FilePath $script:GoExe -Arguments @('build', '-trimpath', "-ldflags=$LdFlags", '-o', $ExePath, './cmd/magnifier')
     Copy-Item -Path $ManifestSource -Destination $ManifestTarget -Force
     Copy-Item -Path $IconSource -Destination $IconTarget -Force
 }
