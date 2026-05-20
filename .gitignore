@@ -2,4 +2,3 @@ dist/
 *.exe
 *.log
 tools/
-go.sum

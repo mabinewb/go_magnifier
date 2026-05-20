@@ -79,6 +79,9 @@ try {
     $BuildVersion = Get-GitTextOrDefault -Arguments @('describe', '--tags', '--dirty', '--always') -DefaultValue 'dev'
     $BuildCommit = Get-GitTextOrDefault -Arguments @('rev-parse', '--short', 'HEAD') -DefaultValue 'unknown'
     $BuildTimeUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $BuildVersionSafe = $BuildVersion.Replace('/', '-').Replace(':', '-')
+    $PackageDir = Join-Path $DistDir ("GoMagnifier-{0}-windows-amd64" -f $BuildVersionSafe)
+    $PackageZipPath = Join-Path $DistDir ("GoMagnifier-{0}-windows-amd64.zip" -f $BuildVersionSafe)
     $LdFlags = @(
         '-H windowsgui',
         "-X gomagnifier/internal/version.Version=$BuildVersion",
@@ -91,9 +94,16 @@ try {
     Invoke-NativeOrThrow -FilePath $script:GoExe -Arguments @('build', '-trimpath', "-ldflags=$LdFlags", '-o', $ExePath, './cmd/magnifier')
     Copy-Item -Path $ManifestSource -Destination $ManifestTarget -Force
     Copy-Item -Path $IconSource -Destination $IconTarget -Force
+    Remove-Item -Path $PackageDir, $PackageZipPath -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $PackageDir | Out-Null
+    Copy-Item -Path $ExePath -Destination $PackageDir -Force
+    Copy-Item -Path $ManifestTarget -Destination $PackageDir -Force
+    Copy-Item -Path $IconTarget -Destination $PackageDir -Force
+    Compress-Archive -Path (Join-Path $PackageDir '*') -DestinationPath $PackageZipPath -Force
 }
 finally {
     Pop-Location
 }
 
 Write-Host ("Build completed: {0}" -f $ExePath)
+Write-Host ("Release package: {0}" -f $PackageZipPath)
