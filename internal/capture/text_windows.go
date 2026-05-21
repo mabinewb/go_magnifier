@@ -15,12 +15,12 @@ import (
 )
 
 var (
-	textUser32              = syscall.NewLazyDLL("user32.dll")
-	textGdi32               = syscall.NewLazyDLL("gdi32.dll")
-	procTextFillRect        = textUser32.NewProc("FillRect")
-	procTextDrawTextW       = textUser32.NewProc("DrawTextW")
+	textUser32               = syscall.NewLazyDLL("user32.dll")
+	textGdi32                = syscall.NewLazyDLL("gdi32.dll")
+	procTextFillRect         = textUser32.NewProc("FillRect")
+	procTextDrawTextW        = textUser32.NewProc("DrawTextW")
 	procTextCreateSolidBrush = textGdi32.NewProc("CreateSolidBrush")
-	procTextCreateFontW     = textGdi32.NewProc("CreateFontW")
+	procTextCreateFontW      = textGdi32.NewProc("CreateFontW")
 )
 
 func renderTextFrame(profile model.Profile) (*Frame, error) {
@@ -96,7 +96,7 @@ func renderTextFrame(profile model.Profile) (*Frame, error) {
 	return cloneBGRAFrame(raw, width, height), nil
 }
 
-func measureTextRect(width int, height int, font win.HFONT, text *uint16, rect win.RECT, flags uint32) (win.RECT, error) {
+func measureTextRect(_ int, _ int, font win.HFONT, text *uint16, rect win.RECT, flags uint32) (win.RECT, error) {
 	hdc := win.CreateCompatibleDC(0)
 	if hdc == 0 {
 		return win.RECT{}, fmt.Errorf("CreateCompatibleDC failed")

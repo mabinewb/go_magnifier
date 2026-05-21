@@ -64,13 +64,13 @@ function New-Shell32IconFrameBytes {
         return ,$bytes
     }
     finally {
-        if ($stream -ne $null) {
+        if ($null -ne $stream) {
             $stream.Dispose()
         }
-        if ($icon -ne $null) { $icon.Dispose() }
-        if ($graphics -ne $null) { $graphics.Dispose() }
-        if ($bitmap -ne $null) { $bitmap.Dispose() }
-        if ($handles[0] -ne [IntPtr]::Zero) {
+        if ($null -ne $icon) { $icon.Dispose() }
+        if ($null -ne $graphics) { $graphics.Dispose() }
+        if ($null -ne $bitmap) { $bitmap.Dispose() }
+        if ([IntPtr]::Zero -ne $handles[0]) {
             [GoMagnifierNativeIconMethods]::DestroyIcon($handles[0]) | Out-Null
         }
     }

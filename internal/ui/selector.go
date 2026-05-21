@@ -1,3 +1,5 @@
+//go:build windows
+
 package ui
 
 import (
@@ -15,14 +17,14 @@ import (
 )
 
 var (
-	selectorUser32         = syscall.NewLazyDLL("user32.dll")
-	selectorGdi32          = syscall.NewLazyDLL("gdi32.dll")
-	procSelectorFillRect   = selectorUser32.NewProc("FillRect")
-	procSelectorFrameRect  = selectorUser32.NewProc("FrameRect")
-	procSelectorDrawTextW  = selectorUser32.NewProc("DrawTextW")
-	procRegisterHotKey     = selectorUser32.NewProc("RegisterHotKey")
-	procUnregisterHotKey   = selectorUser32.NewProc("UnregisterHotKey")
-	procSelectorBrush      = selectorGdi32.NewProc("CreateSolidBrush")
+	selectorUser32        = syscall.NewLazyDLL("user32.dll")
+	selectorGdi32         = syscall.NewLazyDLL("gdi32.dll")
+	procSelectorFillRect  = selectorUser32.NewProc("FillRect")
+	procSelectorFrameRect = selectorUser32.NewProc("FrameRect")
+	procSelectorDrawTextW = selectorUser32.NewProc("DrawTextW")
+	procRegisterHotKey    = selectorUser32.NewProc("RegisterHotKey")
+	procUnregisterHotKey  = selectorUser32.NewProc("UnregisterHotKey")
+	procSelectorBrush     = selectorGdi32.NewProc("CreateSolidBrush")
 )
 
 const (
@@ -33,16 +35,16 @@ const (
 type selectorWindow struct {
 	*walk.MainWindow
 
-	title   string
-	bounds  image.Rectangle
+	title        string
+	bounds       image.Rectangle
 	clientHandle win.HWND
 
-	dragMode selectorDragMode
+	dragMode    selectorDragMode
 	resizeEdges int
-	dragAnchor image.Point
-	dragOrigin model.Rect
-	result   model.Rect
-	accepted bool
+	dragAnchor  image.Point
+	dragOrigin  model.Rect
+	result      model.Rect
+	accepted    bool
 }
 
 type selectorDragMode uint8

@@ -1,3 +1,5 @@
+//go:build windows
+
 package ui
 
 import (
@@ -16,8 +18,8 @@ import (
 	"unsafe"
 
 	"github.com/lxn/walk"
-	"github.com/lxn/win"
 	. "github.com/lxn/walk/declarative"
+	"github.com/lxn/win"
 
 	"gomagnifier/internal/capture"
 	"gomagnifier/internal/model"
@@ -25,15 +27,15 @@ import (
 	"gomagnifier/internal/update"
 	"gomagnifier/internal/version"
 	"gomagnifier/internal/winutil"
-	)
+)
 
 const appName = "GoMagnifier"
 const updateRepoOwner = "mabinewb"
 const updateRepoName = "go_magnifier"
 
 const (
-	mainWindowFixedWidth  = 680
-	mainWindowFixedHeight = 560
+	mainWindowFixedWidth    = 680
+	mainWindowFixedHeight   = 560
 	sourceConfigPanelHeight = 252
 	mainFormLabelWidth      = 84
 	mainValueLabelWidth     = 52
@@ -53,9 +55,9 @@ var textAlignXOptions = []string{"왼쪽", "가운데", "오른쪽"}
 var textAlignYOptions = []string{"위", "가운데", "아래"}
 
 type overlayEntry struct {
-	profile model.Profile
-	overlay *OverlayWindow
-	capture *capture.Service
+	profile              model.Profile
+	overlay              *OverlayWindow
+	capture              *capture.Service
 	actualCaptureBackend string
 }
 
@@ -64,71 +66,71 @@ type controller struct {
 	mainWindow *walk.MainWindow
 	overlays   []*overlayEntry
 
-	activeIndex         int
-	globalClickThrough bool
+	activeIndex            int
+	globalClickThrough     bool
 	globalOverlaysDisabled bool
-	minimizeToTray     bool
-	closeToTrayOnClose bool
-	disableUpdateCheck bool
-	skippedUpdateVersion string
-	alwaysOnTop        bool
-	mainWindowRect     model.Rect
-	exitRequested      bool
+	minimizeToTray         bool
+	closeToTrayOnClose     bool
+	disableUpdateCheck     bool
+	skippedUpdateVersion   string
+	alwaysOnTop            bool
+	mainWindowRect         model.Rect
+	exitRequested          bool
 
-	overlayPicker   *walk.ComboBox
-	sourceKindPicker *walk.ComboBox
-	captureBackendPicker *walk.ComboBox
-	sourceLabel     *walk.Label
-	captureLabel    *walk.Label
-	overlayLabel    *walk.Label
-	opacityLabel    *walk.Label
-	zoomXLabel      *walk.Label
-	zoomYLabel      *walk.Label
-	zoomXTitleLabel *walk.Label
-	zoomXCurrentLabel *walk.Label
-	zoomYTitleLabel *walk.Label
-	zoomYCurrentLabel *walk.Label
-	refreshTitleLabel *walk.Label
-	refreshCurrentTitleLabel *walk.Label
-	refreshLabel    *walk.Label
-	textContentEdit *walk.TextEdit
-	textFontSizeEdit *walk.LineEdit
-	textFontFamilyPicker *walk.ComboBox
-	textAlignXPicker *walk.ComboBox
-	textAlignYPicker *walk.ComboBox
-	textColorEdit   *walk.LineEdit
-	textBackgroundEdit *walk.LineEdit
+	overlayPicker             *walk.ComboBox
+	sourceKindPicker          *walk.ComboBox
+	captureBackendPicker      *walk.ComboBox
+	sourceLabel               *walk.Label
+	captureLabel              *walk.Label
+	overlayLabel              *walk.Label
+	opacityLabel              *walk.Label
+	zoomXLabel                *walk.Label
+	zoomYLabel                *walk.Label
+	zoomXTitleLabel           *walk.Label
+	zoomXCurrentLabel         *walk.Label
+	zoomYTitleLabel           *walk.Label
+	zoomYCurrentLabel         *walk.Label
+	refreshTitleLabel         *walk.Label
+	refreshCurrentTitleLabel  *walk.Label
+	refreshLabel              *walk.Label
+	textContentEdit           *walk.TextEdit
+	textFontSizeEdit          *walk.LineEdit
+	textFontFamilyPicker      *walk.ComboBox
+	textAlignXPicker          *walk.ComboBox
+	textAlignYPicker          *walk.ComboBox
+	textColorEdit             *walk.LineEdit
+	textBackgroundEdit        *walk.LineEdit
 	textBackgroundAlphaSlider *walk.Slider
-	textBackgroundAlphaLabel *walk.Label
-	settingsPathLabel *walk.LineEdit
-	statusLabel     *walk.LineEdit
-	zoomXEdit       *walk.LineEdit
-	zoomYEdit       *walk.LineEdit
-	overlayEnabledBox *walk.CheckBox
-	allOverlaysEnabledBox *walk.CheckBox
-	clickThroughBox *walk.CheckBox
-	checkForUpdatesBox *walk.CheckBox
-	closeToTrayOnCloseBox *walk.CheckBox
-	alwaysOnTopBox  *walk.CheckBox
-	aspectLockBox   *walk.CheckBox
-	recursiveBlockBox *walk.CheckBox
-	textBoldBox     *walk.CheckBox
-	textItalicBox   *walk.CheckBox
-	textShadowBox   *walk.CheckBox
-	textShadowColorEdit *walk.LineEdit
-	textShadowOffsetEdit *walk.LineEdit
-	opacitySlider   *walk.Slider
-	refreshSlider   *walk.Slider
-	screenSourceBox *walk.GroupBox
-	imageSourceBox  *walk.GroupBox
-	textSourceBox   *walk.GroupBox
-	syncingControls bool
-	nextOverlaySeed int64
-	trayIcon        *walk.NotifyIcon
-	trayToggleOverlaysAction *walk.Action
-	trayCheckUpdatesAction *walk.Action
-	appIcon         *walk.Icon
-	lastTrayLeftClick time.Time
+	textBackgroundAlphaLabel  *walk.Label
+	settingsPathLabel         *walk.LineEdit
+	statusLabel               *walk.LineEdit
+	zoomXEdit                 *walk.LineEdit
+	zoomYEdit                 *walk.LineEdit
+	overlayEnabledBox         *walk.CheckBox
+	allOverlaysEnabledBox     *walk.CheckBox
+	clickThroughBox           *walk.CheckBox
+	checkForUpdatesBox        *walk.CheckBox
+	closeToTrayOnCloseBox     *walk.CheckBox
+	alwaysOnTopBox            *walk.CheckBox
+	aspectLockBox             *walk.CheckBox
+	recursiveBlockBox         *walk.CheckBox
+	textBoldBox               *walk.CheckBox
+	textItalicBox             *walk.CheckBox
+	textShadowBox             *walk.CheckBox
+	textShadowColorEdit       *walk.LineEdit
+	textShadowOffsetEdit      *walk.LineEdit
+	opacitySlider             *walk.Slider
+	refreshSlider             *walk.Slider
+	screenSourceBox           *walk.GroupBox
+	imageSourceBox            *walk.GroupBox
+	textSourceBox             *walk.GroupBox
+	syncingControls           bool
+	nextOverlaySeed           int64
+	trayIcon                  *walk.NotifyIcon
+	trayToggleOverlaysAction  *walk.Action
+	trayCheckUpdatesAction    *walk.Action
+	appIcon                   *walk.Icon
+	lastTrayLeftClick         time.Time
 }
 
 func Run() error {
@@ -185,7 +187,7 @@ func (c *controller) createMainWindow() error {
 		Children: []Widget{
 			Composite{
 				StretchFactor: 0,
-				Layout: VBox{MarginsZero: true, Spacing: 4},
+				Layout:        VBox{MarginsZero: true, Spacing: 4},
 				Children: []Widget{
 					Composite{
 						Layout: HBox{MarginsZero: true, Spacing: 6},
@@ -307,12 +309,12 @@ func (c *controller) createMainWindow() error {
 							Composite{
 								MinSize: Size{Height: sourceConfigPanelHeight},
 								MaxSize: Size{Width: 4096, Height: sourceConfigPanelHeight},
-								Layout: VBox{MarginsZero: true, Spacing: 4},
+								Layout:  VBox{MarginsZero: true, Spacing: 4},
 								Children: []Widget{
 									GroupBox{
 										AssignTo: &c.screenSourceBox,
-										Title:  "화면 캡처 설정",
-										Layout: VBox{Margins: Margins{Left: 4, Top: 4, Right: 4, Bottom: 4}, Spacing: 4},
+										Title:    "화면 캡처 설정",
+										Layout:   VBox{Margins: Margins{Left: 4, Top: 4, Right: 4, Bottom: 4}, Spacing: 4},
 										Children: []Widget{
 											Composite{
 												Layout: Grid{Columns: 2, MarginsZero: true, Spacing: 6},
@@ -326,16 +328,16 @@ func (c *controller) createMainWindow() error {
 									},
 									GroupBox{
 										AssignTo: &c.imageSourceBox,
-										Title:  "이미지 설정",
-										Layout: VBox{Margins: Margins{Left: 4, Top: 4, Right: 4, Bottom: 4}, Spacing: 4},
+										Title:    "이미지 설정",
+										Layout:   VBox{Margins: Margins{Left: 4, Top: 4, Right: 4, Bottom: 4}, Spacing: 4},
 										Children: []Widget{
 											PushButton{Text: "이미지 파일 선택", OnClicked: c.selectImageFile},
 										},
 									},
 									GroupBox{
 										AssignTo: &c.textSourceBox,
-										Title:  "텍스트 서식",
-										Layout: VBox{Margins: Margins{Left: 4, Top: 8, Right: 4, Bottom: 4}, Spacing: 4},
+										Title:    "텍스트 서식",
+										Layout:   VBox{Margins: Margins{Left: 4, Top: 8, Right: 4, Bottom: 4}, Spacing: 4},
 										Children: []Widget{
 											TextEdit{AssignTo: &c.textContentEdit, Text: "", MinSize: Size{Width: 320, Height: 52}, OnTextChanged: c.textContentChanged, OnKeyUp: func(walk.Key) { c.textContentChanged() }},
 											Composite{
@@ -389,7 +391,7 @@ func (c *controller) createMainWindow() error {
 			},
 			Composite{
 				StretchFactor: 0,
-				Layout: Grid{Columns: 2, MarginsZero: true, Spacing: 6},
+				Layout:        Grid{Columns: 2, MarginsZero: true, Spacing: 6},
 				Children: []Widget{
 					Label{Text: "상태", MinSize: Size{Width: statusFieldLabelWidth, Height: 20}},
 					LineEdit{AssignTo: &c.statusLabel, ReadOnly: true, Text: "프로그램을 사용할 준비가 되었습니다.", MinSize: Size{Width: 300, Height: 20}},
@@ -658,9 +660,10 @@ func (c *controller) refreshOverlayPicker() {
 	names := make([]string, 0, len(c.overlays))
 	for index, entry := range c.overlays {
 		source := "화면"
-		if entry.profile.SourceKind == model.SourceImage {
+		switch entry.profile.SourceKind {
+		case model.SourceImage:
 			source = "이미지"
-		} else if entry.profile.SourceKind == model.SourceText {
+		case model.SourceText:
 			source = "텍스트"
 		}
 		state := c.overlayStateText(entry)
@@ -1558,11 +1561,12 @@ func (c *controller) updateLabels() {
 		return
 	}
 	if c.sourceLabel != nil {
-		if entry.profile.SourceKind == model.SourceImage {
+		switch entry.profile.SourceKind {
+		case model.SourceImage:
 			c.sourceLabel.SetText("소스: 이미지 파일 · " + entry.profile.ImagePath)
-		} else if entry.profile.SourceKind == model.SourceText {
+		case model.SourceText:
 			c.sourceLabel.SetText("소스: 텍스트 · " + entry.profile.TextFontFamily)
-		} else {
+		default:
 			actualBackend := captureBackendLabel(entry.actualCaptureBackend)
 			if strings.TrimSpace(entry.actualCaptureBackend) == "" {
 				actualBackend = "확인 중"
@@ -1571,11 +1575,12 @@ func (c *controller) updateLabels() {
 		}
 	}
 	if c.captureLabel != nil {
-		if entry.profile.SourceKind == model.SourceImage {
+		switch entry.profile.SourceKind {
+		case model.SourceImage:
 			c.captureLabel.SetText(fmt.Sprintf("이미지 크기: %d x %d", entry.profile.CaptureRect.Width, entry.profile.CaptureRect.Height))
-		} else if entry.profile.SourceKind == model.SourceText {
+		case model.SourceText:
 			c.captureLabel.SetText(fmt.Sprintf("텍스트 캔버스 크기: %d x %d · %s/%s 정렬", entry.profile.CaptureRect.Width, entry.profile.CaptureRect.Height, textAlignXLabel(entry.profile.TextAlignX), textAlignYLabel(entry.profile.TextAlignY)))
-		} else {
+		default:
 			c.captureLabel.SetText(formatRect("캡처 영역", entry.profile.CaptureRect))
 		}
 	}
@@ -1757,16 +1762,16 @@ func (c *controller) currentSession() model.Session {
 		}
 	}
 	return model.Session{
-		ActiveOverlayID: activeID,
-		MainWindowRect:  c.mainWindowRect,
-		GlobalClickThrough: c.globalClickThrough,
+		ActiveOverlayID:          activeID,
+		MainWindowRect:           c.mainWindowRect,
+		GlobalClickThrough:       c.globalClickThrough,
 		OverlaysGloballyDisabled: c.globalOverlaysDisabled,
-		MinimizeToTray: true,
-		CloseToTrayOnClose: c.closeToTrayOnClose,
-		DisableUpdateCheck: c.disableUpdateCheck,
-		SkippedUpdateVersion: c.skippedUpdateVersion,
-		AlwaysOnTop:    c.alwaysOnTop,
-		Overlays:        profiles,
+		MinimizeToTray:           true,
+		CloseToTrayOnClose:       c.closeToTrayOnClose,
+		DisableUpdateCheck:       c.disableUpdateCheck,
+		SkippedUpdateVersion:     c.skippedUpdateVersion,
+		AlwaysOnTop:              c.alwaysOnTop,
+		Overlays:                 profiles,
 	}
 }
 

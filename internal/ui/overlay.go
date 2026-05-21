@@ -1,3 +1,5 @@
+//go:build windows
+
 package ui
 
 import (
@@ -19,19 +21,19 @@ import (
 )
 
 const (
-	scSize         = 0xF000
-	wmszLeft       = 1
-	wmszRight      = 2
-	wmszTop        = 3
-	wmszTopLeft    = 4
-	wmszTopRight   = 5
-	wmszBottom     = 6
-	wmszBottomLeft = 7
-	wmszBottomRight = 8
+	scSize              = 0xF000
+	wmszLeft            = 1
+	wmszRight           = 2
+	wmszTop             = 3
+	wmszTopLeft         = 4
+	wmszTopRight        = 5
+	wmszBottom          = 6
+	wmszBottomLeft      = 7
+	wmszBottomRight     = 8
 	overlayFlushMessage = win.WM_APP + 1
-	acSrcOver      = 0x00
-	acSrcAlpha     = 0x01
-	ulwAlpha       = 0x02
+	acSrcOver           = 0x00
+	acSrcAlpha          = 0x01
+	ulwAlpha            = 0x02
 )
 
 var procUpdateLayeredWindow = syscall.NewLazyDLL("user32.dll").NewProc("UpdateLayeredWindow")
@@ -39,35 +41,35 @@ var procUpdateLayeredWindow = syscall.NewLazyDLL("user32.dll").NewProc("UpdateLa
 type OverlayWindow struct {
 	*walk.MainWindow
 
-	mu              sync.Mutex
-	queued          *capture.Frame
-	flushBusy       atomic.Bool
-	clickThrough    bool
-	lockAspect      bool
-	aspectRatio     float64
-	suppressBounds  bool
-	appliedBounds   model.Rect
-	appliedOpacity  int
+	mu               sync.Mutex
+	queued           *capture.Frame
+	flushBusy        atomic.Bool
+	clickThrough     bool
+	lockAspect       bool
+	aspectRatio      float64
+	suppressBounds   bool
+	appliedBounds    model.Rect
+	appliedOpacity   int
 	appliedRecursive bool
 	usePerPixelAlpha bool
-	runtimeVisible  bool
-	onBoundsChanged func(model.Rect, bool)
-	onPresentError  func(error)
-	clientHandle    win.HWND
-	textLayer       *textLayeredWindow
-	dibDC           win.HDC
-	dibBitmap       win.HBITMAP
-	dibOldBitmap    win.HGDIOBJ
-	dibBits         unsafe.Pointer
-	frameWidth      int
-	frameHeight     int
-	captureExcluded bool
+	runtimeVisible   bool
+	onBoundsChanged  func(model.Rect, bool)
+	onPresentError   func(error)
+	clientHandle     win.HWND
+	textLayer        *textLayeredWindow
+	dibDC            win.HDC
+	dibBitmap        win.HBITMAP
+	dibOldBitmap     win.HGDIOBJ
+	dibBits          unsafe.Pointer
+	frameWidth       int
+	frameHeight      int
+	captureExcluded  bool
 }
 
 type minMaxInfo struct {
-	ptReserved    win.POINT
-	ptMaxSize     win.POINT
-	ptMaxPosition win.POINT
+	ptReserved     win.POINT
+	ptMaxSize      win.POINT
+	ptMaxPosition  win.POINT
 	ptMinTrackSize win.POINT
 	ptMaxTrackSize win.POINT
 }
@@ -366,7 +368,6 @@ func (o *OverlayWindow) flushQueuedFrame() {
 	}
 }
 
-
 func (o *OverlayWindow) handleTopLevelMessage(hwnd win.HWND, msg uint32, wParam, lParam uintptr) (bool, uintptr) {
 	switch msg {
 	case win.WM_ERASEBKGND:
@@ -559,7 +560,6 @@ func (o *OverlayWindow) paintFrame(hwnd win.HWND) {
 		win.SRCCOPY,
 	)
 }
-
 
 func (o *OverlayWindow) updateFrameBuffer(frame *capture.Frame) error {
 	width := frame.Width
